@@ -1,0 +1,378 @@
+---
+title: "Title of Your Submission"
+shorttitle: "Short Title"
+leftheader: "VISC Report"
+from:
+ - name: FirstNameA LastNameA
+   email: foo@bar.com
+   contact: true
+ - name: FirstNameB LastNameB
+to:
+ - name: FirstNameA LastNameA
+ - name: FirstNameB LastNameB
+ - name: FirstNameC LastNameC
+ - name: FirstNameD LastNameD
+ - name: FirstNameE LastNameE
+ - name: FirstNameF LastNameF
+dropcc: false
+cc:
+ - name: FirstNameA LastNameA
+ - name: FirstNameB LastNameB
+ - name: FirstNameC LastNameC
+ - name: FirstNameD LastNameD
+ - name: FirstNameE LastNameE
+includesummary: true
+summary: 
+  A short summary about your report. 
+bibliography: "`r ifelse(file.exists('bibliography.bib'), 'bibliography.bib', here::here('docs', 'bibliography.bib'))`"
+lof: true
+lot: true
+toc: true
+dropVISClogo: false
+output: 
+  VISCtemplates::visc_word_document: default
+  VISCtemplates::visc_pdf_document: default
+---
+
+<!---
+This section is required according to WI-0010.
+Program Name:
+Creation Date:
+Full name of author:
+Project or Protocol:
+Purpose or description of program:
+Location of program:
+Location of input data:
+--->
+
+```{r package-loading-and-options, include=FALSE}
+library(VISCtemplates)
+
+check_pandoc_version()
+
+packages_needed <- c(
+  "conflicted", "tidyverse", "knitr", "kableExtra", "VISCfunctions","here"
+  )
+
+install_load_cran_packages(packages_needed)
+
+# knitr options
+opts_chunk$set(cache = FALSE, message = TRUE, warning = TRUE, echo = FALSE, 
+               dev = c("png", "pdf"), dpi = 200, out.width = "100%", 
+               out.extra = "", fig.align = "center", fig.pos = "H")
+
+# NA's will be blank in tables
+options(knitr.kable.NA = '')
+
+# Create a theme 
+visc_theme <- theme_bw() + 
+  theme(
+    legend.position = "bottom", 
+    legend.margin = margin(unit = "cm"),
+    panel.grid.minor = element_blank()
+    )
+
+theme_set(visc_theme)
+
+# Set group colors for this example.
+# If you have group colors already in your project:
+# source(here::here("R", "group_colors.R"))
+group_colors <- c(
+  `1` = "#D92321",
+  `2` = "#1749FF",
+  `4` = "#0AB7C9"
+)
+```
+
+```{r conflicted-preferences, message=FALSE}
+
+# filter() is used in both dplyr and stats, so need to set the preference to dplyr
+conflict_prefer("filter", "dplyr")
+```
+
+```{r word-pdf-options}
+
+output_type <- get_output_type()
+
+kable_warnings <- set_kable_warnings(output_type)
+pandoc_markup <- set_pandoc_markup(output_type)
+```
+
+```{r data-package, eval=FALSE}
+
+remotes::install_github("https://github.com/FredHutch/VDCNNNAnalysis.git")
+```
+
+```{r data-processing}
+# For this template use VISCfunction example data
+data(exampleData_ICS)
+
+ICS_adata <- exampleData_ICS %>% 
+  filter(Population == "IFNg" & Group != 3)
+```
+
+`r insert_break()` 
+
+# Summary of Main Results
+
+Summarize the main highlights from the Results section. 
+This can be in bullet format. 
+Any significant results mentioned should include p-values and references to 
+appropriate figures and tables. 
+There should be no information in the Summary section that is not contained in 
+the Results section (see `r insert_ref("results", "Results")`).
+
+# Background
+
+<!-- The background section can be saved as a child R Markdown file in the docs/ folder so that the same text can be used across PT reports for the protocol. -->
+
+```{r background, child=here::here("docs", "background.Rmd") }
+```
+
+This report presents data [blinded/unblinded] to treatment arm, 
+as of [enter date of data file creation].
+
+Samples were collected at: 
+[list study time points and corresponding relationship to vaccination, 
+e.g., week 0 (1st vaccination), 
+week 6 (2 weeks post-2nd vaccination), 
+week 10 (2 weeks post-3rd vaccination, 
+and week 26 (2 weeks post-4th (final) vaccination))] 
+for [# groups; list vaccine doses or group descriptions] 
+(reference test: @Huang:2013fl).
+
+<!-- Frequently used citations are included in the `docs/bibliography.bib` file created with `VISCtemplates::create_visc_project()`. If `docs/bibliography.bib` doesn't exist, it will be created when you knit this document. -->
+
+<!-- Also include the study schema here. -->
+
+```{r study-schema, results="asis", warning=kable_warnings}
+source(here("R", "study_schema.R"))
+study_schema()
+```
+
+## Report Amendments 
+
+If previous reports were provided, note if this report supplements or supersedes 
+the previous reports. 
+For example, "the previous PT report (distributed on DDMonthYYYY) presented 
+peak data. This report summarizes additional durability data."
+
+If this is an updated report, also briefly describe additional data included 
+and/or analysis done since the previous report (e.g., additional visits, 
+participants (include pubIDs), antigens, comparisons, new/changed tables, figures).
+
+# Objectives
+
+List primary and secondary (if applicable) objectives. 
+Objectives can be found on ATLAS, in the study protocol, or in the SAP.
+
+<!-- Use `VISCtemplates::use_visc_methods()` to create child Rmd files if needed. -->
+
+# Biological Endpoints
+
+```{r biological-endpoints, child="methods/biological-endpoints.Rmd"}
+```
+
+# Lab Methods
+
+```{r lab-methods, child="methods/lab-methods.Rmd"}
+```
+
+# Statistical Methods
+
+```{r statistical-methods, child="methods/statistical-methods.Rmd"}
+```
+
+```{r response-testing, warning=FALSE}
+
+# example of using VISCfunctions::pairwise_test_bin for analysis
+response_results <- ICS_adata %>% 
+  group_by(Stim, Visit) %>%
+  group_modify(
+      ~pairwise_test_bin(
+        x = .$response, 
+        group = .$Group, 
+        method = "barnard", 
+        alternative = "less", 
+        num_needed_for_test = 3, 
+        digits = 1,
+        latex_output = TRUE, 
+        verbose = FALSE
+        )
+    ) %>%  
+  ungroup() %>% 
+  mutate(
+    ResponseTest = pretty_pvalues( 
+      ResponseTest, output_type = output_type, sig_alpha = .1, 
+      background = 'yellow',
+      bold = if_else(pandoc_markup , TRUE, FALSE),
+      italic = if_else(pandoc_markup , TRUE, FALSE)
+      )
+    )
+```
+
+```{r magnitude-testing, warning=FALSE}
+
+# example of using VISCfunctions::pairwise_test_cont for analysis
+magnitude_results <- ICS_adata %>%
+  group_by(Stim, Visit, Population) %>%
+  group_modify(
+    ~pairwise_test_cont(
+      x = .$PercentCellNet, 
+      group = .$Group, 
+      method = "wilcox", 
+      paired = FALSE, 
+      alternative = "greater", 
+      num_needed_for_test = 3, 
+      digits = 3, 
+      verbose = FALSE
+      )
+    ) %>% 
+   ungroup() %>% 
+  mutate(
+    MagnitudeTest = pretty_pvalues(
+      MagnitudeTest, output_type = output_type, sig_alpha = .1,
+      background = "yellow",
+      bold = if_else(pandoc_markup , TRUE, FALSE),
+      italic = if_else(pandoc_markup , TRUE, FALSE)
+      )
+    ) %>% 
+  rename("Median (Range)" = Median_Min_Max, 'Mean (SD)' = Mean_SD)
+```
+
+# Participant Cohort
+
+The study enrolled [describe the total number enrolled to date and, if unblinded, 
+the number in each treatment arm]. 
+Include a table with data availability by key variables and red highlights for 
+counts that are less than expected. 
+Refer to the table and comment on reasons for missing data if known.
+
+# Results
+
+The results section addresses how each endpoint supports the main objectives. 
+Include summary statistics and significant results as applicable, 
+including p-values and table and figure references. 
+The results section should provide supporting evidence for all statements made 
+in the summary section.
+
+## Section 1
+
+Consider breaking up the results section by objective or by statistical endpoint.
+
+## Section 2
+
+Make sure to include p-values and references to relevant tables and figures. 
+See Figure `r insert_ref("fig:example-plot")` and Table `r insert_ref("tab:example-tab")`. 
+
+`r insert_break()` 
+
+# Figures and Tables
+
+```{r example-plot, fig.scap="Shorter caption for List of Figures.", fig.cap= "Longer caption that shows under the figure. Explain everything needed to understand the figure here."}
+
+ICS_adata %>%
+  ggplot(aes(x = factor(Group), y = pmax(PercentCellNet, 0.005))) +
+  geom_point(
+    data = ICS_adata %>% filter(response == 0),
+    aes(shape = factor(response)),
+    position = position_jitter(width = .25, height = 0, seed = 3241),
+    color = "#787873", size = 1, show.legend = FALSE
+    ) +
+  geom_point(
+    data = ICS_adata %>% filter(response == 1), 
+    aes(shape = factor(response), color = factor(Group)),
+    position = position_jitter(width = .25, seed = 3241), size = 1
+    ) +
+  geom_boxplot(
+    data = ICS_adata %>% filter(response == 1),
+    aes(col = factor(Group)),
+    fill = NA, lwd = .5, outlier.colour = NA
+    ) +  
+  scale_color_manual(values = group_colors) +
+  scale_shape_manual(
+    breaks = c(0,1), 
+    labels = c("Non-responder", "Responder"), 
+    values = c(2, 19)
+    ) +
+  scale_y_log10(
+    breaks = c(.005,.01,.05,.25,1,2, 4, 10),
+    labels = c(expression("" <= "0.005%"), 
+               "0.01", "0.05", '0.25%', "1%", "2%", "4%", "10%")
+    ) +
+  facet_grid(Stim ~ Visit) +
+  theme(
+    axis.title.x = element_blank()
+  ) +
+  labs(
+    y = expression("Background-Adjusted % Activation Marker+"),
+    shape = "",
+    color = "Group"
+  )
+```
+
+`r insert_break()` 
+
+```{r example-tab, results="asis", warning=kable_warnings}
+
+magnitude_tab <- magnitude_results %>% 
+  select(-Population, -contains("Perfect")) 
+
+caption_short <- "Short caption to show in List of Tables."
+
+caption <- "Long caption to show above table. Explain everything needed to understand the table here."
+
+magnitude_tab %>%
+  kable(
+    format = output_type, 
+    longtable = FALSE, 
+    booktabs = TRUE,
+    linesep = "", 
+    escape = FALSE,
+    caption.short = caption_short,
+    caption = caption
+  ) %>%
+  kable_styling(
+    font_size = 8,
+    # Note scale_down will overwrite font_size specifications
+    latex_options = c("hold_position", "scale_down", "repeat_header")
+  ) %>% 
+  collapse_rows(
+    columns = 1:2, 
+    row_group_label_position = "identity",
+    latex_hline = "full"
+    ) %>% 
+  footnote("SD: standard deviation.", threeparttable = TRUE)
+```
+
+`r insert_break()`  
+
+```{r Software-Session-Information, results="asis", message=FALSE, warning=kable_warnings}
+# load in rmarkdown to capture verison number
+if (any(installed.packages()[,1] == 'rmarkdown')) suppressWarnings(library(rmarkdown))
+
+my_session_info <- VISCfunctions::get_session_info()
+
+kable(
+  my_session_info$platform_table, 
+  format = output_type, 
+  booktabs = TRUE, 
+  linesep = "", 
+  caption = "Reproducibility software session information"
+  ) %>% 
+  kable_styling(font_size = 10)
+```
+
+```{r Software-Package-Version-Information, results="asis", warning=kable_warnings}
+kable(
+  my_session_info$packages_table, 
+  format = output_type, booktabs = TRUE, 
+  linesep = "", 
+  caption = "Reproducibility software package version information"
+  ) %>% 
+  kable_styling(font_size = 10)
+```
+
+`r insert_break()` 
+
+# References
